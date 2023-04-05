@@ -1,4 +1,3 @@
-
 package com.beeriluhen.grupoLegal;
 
 import java.util.LinkedList;

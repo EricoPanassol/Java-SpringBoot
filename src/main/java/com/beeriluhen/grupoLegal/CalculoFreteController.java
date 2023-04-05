@@ -1,3 +1,4 @@
+
 package com.beeriluhen.grupoLegal;
 
 import java.util.LinkedList;
@@ -15,45 +16,117 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.beeriluhen.grupoLegal.util.MontaPesquisaCEP;
+import com.beeriluhen.grupoLegal.util.ConsultaViaCEP;
+import com.beeriluhen.grupoLegal.util.ResultadoPesquisaCEP;
+
 @RestController
 @RequestMapping("/calculoFrete")
 public class CalculoFreteController {
-    private Map<String, CustoBasicoTransporteDTO> cidadesAtendidas;
+    private Map<String, CustoBasicoTransporte> cidadesAtendidas;
 
     public CalculoFreteController() {
         cidadesAtendidas = new TreeMap<>();
         // Define o custo do transporte a partir de São Paulo
-        cidadesAtendidas.put("Porto Alegre", new CustoBasicoTransporteDTO("Porto Alegre", 25));
-        cidadesAtendidas.put("Florianópolis", new CustoBasicoTransporteDTO("Florianópolis", 20));
-        cidadesAtendidas.put("Curitiba", new CustoBasicoTransporteDTO("Curitiba", 15));
-        cidadesAtendidas.put("São Paulo", new CustoBasicoTransporteDTO("São Paulo", 10));
+        cidadesAtendidas.put("Porto Alegre", new CustoBasicoTransporte("Porto Alegre", 25));
+        cidadesAtendidas.put("Florianópolis", new CustoBasicoTransporte("Florianópolis", 20));
+        cidadesAtendidas.put("Curitiba", new CustoBasicoTransporte("Curitiba", 15));
+        cidadesAtendidas.put("São Paulo", new CustoBasicoTransporte("São Paulo", 10));
     }
 
     @GetMapping("/cidadesAtendidas")
     @CrossOrigin(origins = "*")
     public ResponseEntity<List<String>> consultaCidadesAtendidas() {
         List<String> cidades = new LinkedList<>(cidadesAtendidas.keySet());
-        return ResponseEntity.status(HttpStatus.OK).body(cidades);
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(cidades);
+    }
+
+    // Retorna a cidade correspondente ao CEP ou
+    // "invalido" se o CEP for invalido ou
+    // "nao atendida" se o CEP é válido mas a cidade não é atendida
+    // "excecao" se houve problema na consulta
+    private ResultadoPesquisaCEP pesquisaCEP(String umCEP) throws Exception {
+        ConsultaViaCEP cvc = new ConsultaViaCEP();
+        if (!umCEP.isBlank()) {
+            var pesquisa = new MontaPesquisaCEP();
+            pesquisa.setCep(umCEP);
+            var consulta = pesquisa.consultaPorCEP();
+            var resp = cvc.submeteConsultaCEP(consulta);
+            return resp;
+
+        } else {
+            return null;
+        }
     }
 
     @GetMapping("/validaCEP/{umCEP}")
     @CrossOrigin(origins = "*")
     public ResponseEntity<String> validaCEP(@PathVariable("umCEP") String umCEP) {
-        return ResponseEntity
-                .status(HttpStatus.OK)
-                .body("Que cidade tem este CEP? -> " + umCEP);
+        try {
+            var consulta = pesquisaCEP(umCEP);
+            if (consulta == null) {
+                return ResponseEntity
+                        .status(HttpStatus.OK)
+                        .body("invalido");
+            }
+            var cidade = consulta.getLocalidade();
+            if (cidadesAtendidas.keySet().contains(cidade)) {
+                return ResponseEntity
+                        .status(HttpStatus.OK)
+                        .body(cidade);
+            } else {
+                return ResponseEntity
+                        .status(HttpStatus.OK)
+                        .body("nao atendida");
+            }
+        } catch (Exception e) {
+            return ResponseEntity
+                    .status(HttpStatus.OK)
+                    .body("excecao");
+        }
     }
 
     @PostMapping("/custoEntrega")
     @CrossOrigin(origins = "*")
-    public ResponseEntity<CustoTempoEntregaDTO> custoEntrega(@RequestBody final SolicitaCustoDTO solCusto) {
-        CustoTempoEntregaDTO custoEntrega = new CustoTempoEntregaDTO(
-                "01031970", "São Paulo",
-                solCusto.cepDestino(), "",
-                solCusto.peso(), 0, 0,
+    public ResponseEntity<CustoTempoEntregaDTO> calculaCustoEntrega(@RequestBody final SolicitaCustoDTO solCusto) {
+        CustoTempoEntregaDTO custoEntregaInv = new CustoTempoEntregaDTO(
+                "01031970", "São Paulo", "",
+                "", 0, 0, 0,
                 0, 0, -1);
-        return ResponseEntity
-                .status(HttpStatus.OK)
-                .body(custoEntrega);
+        try {
+            var consulta = pesquisaCEP(solCusto.cepDestino());
+            if (consulta == null) {
+                return ResponseEntity
+                        .status(HttpStatus.OK)
+                        .body(custoEntregaInv);
+            }
+            var cidade = consulta.getLocalidade();
+            // Se a cidade é atendida, verifica custo e tempo de entrega
+            if (cidadesAtendidas.keySet().contains(cidade)) {
+                var cbt = cidadesAtendidas.get(cidade);
+                CustoTempoEntregaDTO cte = new CustoTempoEntregaDTO(
+                        "01031970", "São Paulo",
+                        solCusto.cepDestino(), cbt.cidade(),
+                        solCusto.peso(),
+                        cbt.valor(),
+                        0,
+                        0,
+                        cbt.valor(),
+                        5);
+                return ResponseEntity
+                        .status(HttpStatus.OK)
+                        .body(cte);
+            } else {
+                return ResponseEntity
+                        .status(HttpStatus.OK)
+                        .body(custoEntregaInv);
+            }
+        } catch (Exception e) {
+            return ResponseEntity
+                    .status(HttpStatus.OK)
+                    .body(custoEntregaInv);
+        }
     }
 }

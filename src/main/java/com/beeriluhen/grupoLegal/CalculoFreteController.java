@@ -4,8 +4,8 @@ package com.beeriluhen.grupoLegal;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -24,23 +24,39 @@ import com.beeriluhen.grupoLegal.util.ResultadoPesquisaCEP;
 @RequestMapping("/calculoFrete")
 public class CalculoFreteController {
     private Map<String, CustoBasicoTransporte> cidadesAtendidas;
+    private IRepositorioDeCidades repositorioDeCidades;
 
-    public CalculoFreteController() {
-        cidadesAtendidas = new TreeMap<>();
-        // Define o custo do transporte a partir de São Paulo
-        cidadesAtendidas.put("Porto Alegre", new CustoBasicoTransporte("Porto Alegre", 25));
-        cidadesAtendidas.put("Florianópolis", new CustoBasicoTransporte("Florianópolis", 20));
-        cidadesAtendidas.put("Curitiba", new CustoBasicoTransporte("Curitiba", 15));
-        cidadesAtendidas.put("São Paulo", new CustoBasicoTransporte("São Paulo", 10));
+    // public CalculoFreteController() {
+    // cidadesAtendidas = new TreeMap<>();
+    // // Define o custo do transporte a partir de São Paulo
+    // cidadesAtendidas.put("Porto Alegre", new CustoBasicoTransporte("Porto
+    // Alegre", 25));
+    // cidadesAtendidas.put("Florianópolis", new
+    // CustoBasicoTransporte("Florianópolis", 20));
+    // cidadesAtendidas.put("Curitiba", new CustoBasicoTransporte("Curitiba", 15));
+    // cidadesAtendidas.put("São Paulo", new CustoBasicoTransporte("São Paulo",
+    // 10));
+    // }
+
+    @Autowired
+    public CalculoFreteController(IRepositorioDeCidades repositorioDeCidades) {
+        this.repositorioDeCidades = repositorioDeCidades;
     }
+
+    // @GetMapping("/cidadesAtendidas")
+    // @CrossOrigin(origins = "*")
+    // public ResponseEntity<List<String>> consultaCidadesAtendidas() {
+    // List<String> cidades = new LinkedList<>(cidadesAtendidas.keySet());
+    // return ResponseEntity
+    // .status(HttpStatus.OK)
+    // .body(cidades);
+    // }
 
     @GetMapping("/cidadesAtendidas")
     @CrossOrigin(origins = "*")
     public ResponseEntity<List<String>> consultaCidadesAtendidas() {
-        List<String> cidades = new LinkedList<>(cidadesAtendidas.keySet());
-        return ResponseEntity
-                .status(HttpStatus.OK)
-                .body(cidades);
+        List<String> cidades = repositorioDeCidades.todas().stream().map(c -> c.getNome()).toList();
+        return ResponseEntity.status(HttpStatus.OK).body(cidades);
     }
 
     // Retorna a cidade correspondente ao CEP ou

@@ -1,6 +1,7 @@
 
 package com.beeriluhen.grupoLegal;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -19,11 +20,12 @@ import org.springframework.web.bind.annotation.RestController;
 import com.beeriluhen.grupoLegal.util.MontaPesquisaCEP;
 import com.beeriluhen.grupoLegal.util.ConsultaViaCEP;
 import com.beeriluhen.grupoLegal.util.ResultadoPesquisaCEP;
+import com.fasterxml.jackson.databind.ser.std.ArraySerializerBase;
 
 @RestController
 @RequestMapping("/calculoFrete")
 public class CalculoFreteController {
-    private Map<String, CustoBasicoTransporte> cidadesAtendidas;
+    // private Map<String, CustoBasicoTransporte> cidadesAtendidas;
     private IRepositorioDeCidades repositorioDeCidades;
 
     // public CalculoFreteController() {
@@ -87,11 +89,17 @@ public class CalculoFreteController {
                         .status(HttpStatus.OK)
                         .body("invalido");
             }
-            var cidade = consulta.getLocalidade();
-            if (cidadesAtendidas.keySet().contains(cidade)) {
+
+            // System.out.println(cidade + "======================================" +
+            // repositorioDeCidades.todas());
+
+            var nomeCidade = consulta.getLocalidade();
+            var cidade = repositorioDeCidades.get(nomeCidade);
+
+            if (cidade != null) {
                 return ResponseEntity
                         .status(HttpStatus.OK)
-                        .body(cidade);
+                        .body(cidade.getNome());
             } else {
                 return ResponseEntity
                         .status(HttpStatus.OK)
@@ -102,15 +110,13 @@ public class CalculoFreteController {
                     .status(HttpStatus.OK)
                     .body("excecao");
         }
+
     }
 
     @PostMapping("/custoEntrega")
     @CrossOrigin(origins = "*")
     public ResponseEntity<CustoTempoEntregaDTO> calculaCustoEntrega(@RequestBody final SolicitaCustoDTO solCusto) {
-        CustoTempoEntregaDTO custoEntregaInv = new CustoTempoEntregaDTO(
-                "01031970", "São Paulo", "",
-                "", 0, 0, 0,
-                0, 0, -1);
+        CustoTempoEntregaDTO custoEntregaInv = new CustoTempoEntregaDTO.Builder().build();
         try {
             var consulta = pesquisaCEP(solCusto.cepDestino());
             if (consulta == null) {
@@ -118,19 +124,18 @@ public class CalculoFreteController {
                         .status(HttpStatus.OK)
                         .body(custoEntregaInv);
             }
-            var cidade = consulta.getLocalidade();
+            var nomeCidade = consulta.getLocalidade();
+            var cidade = repositorioDeCidades.get(nomeCidade);
             // Se a cidade é atendida, verifica custo e tempo de entrega
-            if (cidadesAtendidas.keySet().contains(cidade)) {
-                var cbt = cidadesAtendidas.get(cidade);
-                CustoTempoEntregaDTO cte = new CustoTempoEntregaDTO(
-                        "01031970", "São Paulo",
-                        solCusto.cepDestino(), cbt.cidade(),
-                        solCusto.peso(),
-                        cbt.valor(),
-                        0,
-                        0,
-                        cbt.valor(),
-                        5);
+            if (cidade != null) {
+                CustoTempoEntregaDTO cte = new CustoTempoEntregaDTO.Builder()
+                        .cepDestino(solCusto.cepDestino())
+                        .cidadeDestino(cidade.getNome())
+                        .peso(solCusto.peso())
+                        .custoBasico(cidade.getCustoBasico())
+                        .custoFinal(cidade.getCustoBasico())
+                        .diasUteisParaEntrega(5)
+                        .build();
                 return ResponseEntity
                         .status(HttpStatus.OK)
                         .body(cte);
